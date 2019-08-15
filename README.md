@@ -4,12 +4,12 @@ languages:
 - java
 products:
 - azure
-services: Containerregistry
-platforms: java
-author: yaohaizh
+extensions:
+- services: Containerregistry
+- platforms: java
 ---
 
-## Getting Started with Containerregistry - Manage Container Registry With Webhooks - in Java ##
+# Getting Started with Containerregistry - Manage Container Registry With Webhooks - in Java #
 
 
   Azure Container Registry sample for managing container registry with webhooks.
