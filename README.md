@@ -4,9 +4,8 @@ languages:
 - java
 products:
 - azure
-extensions:
-- services: Containerregistry
-- platforms: java
+description: "Azure Container Registry sample for managing container registry with webhooks."
+urlFragment: acr-java-manage-azure-container-registry-with-webhooks
 ---
 
 # Getting Started with Containerregistry - Manage Container Registry With Webhooks - in Java #
