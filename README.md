@@ -8,8 +8,7 @@ description: "Azure Container Registry sample for managing container registry wi
 urlFragment: acr-java-manage-azure-container-registry-with-webhooks
 ---
 
-# Getting Started with Containerregistry - Manage Container Registry With Webhooks - in Java #
-
+# Manage Container Registry With Webhooks (Java)
 
   Azure Container Registry sample for managing container registry with webhooks.
      - Create an Azure Container Registry and setup couple Webhooks to be triggered on registry related actions (push, delete)
@@ -21,24 +20,22 @@ urlFragment: acr-java-manage-azure-container-registry-with-webhooks
      - List the container registry webhook event notifications after pushing a container image to the registry
  
 
-## Running this Sample ##
+## Running this sample
 
 To run this sample:
 
 Set the environment variable `AZURE_AUTH_LOCATION` with the full path for an auth file. See [how to create an auth file](https://github.com/Azure/azure-libraries-for-java/blob/master/AUTH.md).
 
-    git clone https://github.com/Azure-Samples/acr-java-manage-azure-container-registry-with-webhooks.git
+```bash
+git clone https://github.com/Azure-Samples/acr-java-manage-azure-container-registry-with-webhooks.git
+cd acr-java-manage-azure-container-registry-with-webhooks
+mvn clean compile exec:java
+```
 
-    cd acr-java-manage-azure-container-registry-with-webhooks
-
-    mvn clean compile exec:java
-
-## More information ##
+## More information
 
 [http://azure.com/java](http://azure.com/java)
 
-If you don't have a Microsoft Azure subscription you can get a FREE trial account [here](http://go.microsoft.com/fwlink/?LinkId=330212)
-
----
+If you don't have a Microsoft Azure subscription you can get a FREE trial account [here](http://go.microsoft.com/fwlink/?LinkId=330212).
 
 This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/). For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
