@@ -1,34 +1,36 @@
-/**
- * Copyright (c) Microsoft Corporation. All rights reserved.
- * Licensed under the MIT License. See License.txt in the project root for
- * license information.
- */
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License.
 
-package com.microsoft.azure.management.containerregistry.samples;
+package com.azure.resourcemanager.containerregistry.samples;
 
+import com.azure.core.credential.TokenCredential;
+import com.azure.core.http.policy.HttpLogDetailLevel;
+import com.azure.core.management.AzureEnvironment;
+import com.azure.identity.DefaultAzureCredentialBuilder;
+import com.azure.resourcemanager.AzureResourceManager;
+import com.azure.resourcemanager.containerregistry.models.AccessKeyType;
+import com.azure.resourcemanager.containerregistry.models.Registry;
+import com.azure.resourcemanager.containerregistry.models.RegistryCredentials;
+import com.azure.resourcemanager.containerregistry.models.Webhook;
+import com.azure.resourcemanager.containerregistry.models.WebhookAction;
+import com.azure.resourcemanager.containerregistry.models.WebhookEventInfo;
+import com.azure.core.management.Region;
+import com.azure.core.management.profile.AzureProfile;
+import com.azure.resourcemanager.samples.DockerUtils;
+import com.azure.resourcemanager.samples.Utils;
 import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.command.CreateContainerResponse;
+import com.github.dockerjava.api.command.PullImageResultCallback;
 import com.github.dockerjava.api.exception.NotFoundException;
+import com.github.dockerjava.api.model.AuthConfig;
 import com.github.dockerjava.api.model.Container;
 import com.github.dockerjava.api.model.Image;
-import com.github.dockerjava.core.command.PullImageResultCallback;
 import com.github.dockerjava.core.command.PushImageResultCallback;
-import com.microsoft.azure.management.Azure;
-import com.microsoft.azure.management.containerregistry.AccessKeyType;
-import com.microsoft.azure.management.containerregistry.Registry;
-import com.microsoft.azure.management.containerregistry.RegistryCredentials;
-import com.microsoft.azure.management.containerregistry.Webhook;
-import com.microsoft.azure.management.containerregistry.WebhookAction;
-import com.microsoft.azure.management.containerregistry.WebhookEventInfo;
-import com.microsoft.azure.management.resources.fluentcore.arm.Region;
-import com.microsoft.azure.management.resources.fluentcore.utils.SdkContext;
-import com.microsoft.azure.management.samples.DockerUtils;
-import com.microsoft.azure.management.samples.Utils;
-import com.microsoft.rest.LogLevel;
 
-import java.io.File;
+import java.io.IOException;
 import java.util.Date;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Azure Container Registry sample for managing container registry with webhooks.
@@ -44,12 +46,12 @@ public class ManageContainerRegistryWithWebhooks {
     /**
      * Main function which runs the actual sample.
      *
-     * @param azure instance of the azure client
+     * @param azureResourceManager instance of the azure client
      * @return true if sample runs successfully
      */
-    public static boolean runSample(Azure azure) {
-        final String rgName = SdkContext.randomResourceName("rgACR", 15);
-        final String acrName = SdkContext.randomResourceName("acrsample", 20);
+    public static boolean runSample(AzureResourceManager azureResourceManager) throws IOException, InterruptedException {
+        final String rgName = Utils.randomResourceName(azureResourceManager, "rgACR", 15);
+        final String acrName = Utils.randomResourceName(azureResourceManager, "acrsample", 20);
         final Region region = Region.US_WEST_CENTRAL;
         final String dockerImageName = "hello-world";
         final String dockerImageTag = "latest";
@@ -68,7 +70,7 @@ public class ManageContainerRegistryWithWebhooks {
 
             Date t1 = new Date();
 
-            Registry azureRegistry = azure.containerRegistries().define(acrName)
+            Registry azureRegistry = azureResourceManager.containerRegistries().define(acrName)
                 .withRegion(region)
                 .withNewResourceGroup(rgName)
                 .withBasicSku()
@@ -98,18 +100,17 @@ public class ManageContainerRegistryWithWebhooks {
 
             Webhook webhook = azureRegistry.webhooks().get(webhookName1);
             webhook.ping();
-            List<WebhookEventInfo> webhookEvents = webhook.listEvents();
+            List<WebhookEventInfo> webhookEvents = webhook.listEvents().stream().collect(Collectors.toList());
             System.out.format("Found %d webhook events for: %s with container service: %s/n", webhookEvents.size(), webhook.name(), azureRegistry.name());
             for (WebhookEventInfo webhookEventInfo : webhookEvents) {
                 System.out.print("\t" + webhookEventInfo.eventResponseMessage().content());
             }
 
-
             //=============================================================
             // Create a Docker client that will be used to push/pull images to/from the Azure Container Registry
 
             RegistryCredentials acrCredentials = azureRegistry.getCredentials();
-            DockerClient dockerClient = DockerUtils.createDockerClient(azure, rgName, region,
+            DockerClient dockerClient = DockerUtils.createDockerClient(azureResourceManager, rgName, region,
                 azureRegistry.loginServerUrl(), acrCredentials.username(), acrCredentials.accessKeys().get(AccessKeyType.PRIMARY));
 
             //=============================================================
@@ -118,12 +119,13 @@ public class ManageContainerRegistryWithWebhooks {
 
             dockerClient.pullImageCmd(dockerImageName)
                 .withTag(dockerImageTag)
+                .withAuthConfig(new AuthConfig()) // anonymous
                 .exec(new PullImageResultCallback())
-                .awaitSuccess();
+                .awaitCompletion();
             System.out.println("List local Docker images:");
             List<Image> images = dockerClient.listImagesCmd().withShowAll(true).exec();
             for (Image image : images) {
-                System.out.format("\tFound Docker image %s (%s)\n", image.getRepoTags()[0], image.getId());
+                System.out.format("\tFound Docker image %s (%s)%n", image.getRepoTags()[0], image.getId());
             }
 
             CreateContainerResponse dockerContainerInstance = dockerClient.createContainerCmd(dockerImageName + ":" + dockerImageTag)
@@ -135,14 +137,14 @@ public class ManageContainerRegistryWithWebhooks {
                 .withShowAll(true)
                 .exec();
             for (Container container : dockerContainers) {
-                System.out.format("\tFound Docker container %s (%s)\n", container.getImage(), container.getId());
+                System.out.format("\tFound Docker container %s (%s)%n", container.getImage(), container.getId());
             }
 
             //=============================================================
             // Commit the new container
 
             String privateRepoUrl = azureRegistry.loginServerUrl() + "/samples/" + dockerContainerName;
-            String dockerImageId = dockerClient.commitCmd(dockerContainerInstance.getId())
+            dockerClient.commitCmd(dockerContainerInstance.getId())
                 .withRepository(privateRepoUrl)
                 .withTag("latest").exec();
 
@@ -169,20 +171,17 @@ public class ManageContainerRegistryWithWebhooks {
             // Gets the container registry webhook after pushing a container image and list the event notifications
 
             webhook = azureRegistry.webhooks().get(webhookName1);
-            webhookEvents = webhook.listEvents();
+            webhookEvents = webhook.listEvents().stream().collect(Collectors.toList());
             System.out.format("Found %d webhook events for: %s with container service: %s/n", webhookEvents.size(), webhook.name(), azureRegistry.name());
             for (WebhookEventInfo webhookEventInfo : webhookEvents) {
                 System.out.print("\t" + webhookEventInfo.eventResponseMessage().content());
             }
 
             return true;
-        } catch (Exception f) {
-            System.out.println(f.getMessage());
-            f.printStackTrace();
         } finally {
             try {
                 System.out.println("Deleting Resource Group: " + rgName);
-                azure.resourceGroups().beginDeleteByName(rgName);
+                azureResourceManager.resourceGroups().beginDeleteByName(rgName);
                 System.out.println("Deleted Resource Group: " + rgName);
             } catch (NullPointerException npe) {
                 System.out.println("Did not create any resources in Azure. No clean up is necessary");
@@ -190,7 +189,6 @@ public class ManageContainerRegistryWithWebhooks {
                 g.printStackTrace();
             }
         }
-        return false;
     }
 
     /**
@@ -203,17 +201,21 @@ public class ManageContainerRegistryWithWebhooks {
             //=============================================================
             // Authenticate
 
-            final File credFile = new File(System.getenv("AZURE_AUTH_LOCATION"));
+            final AzureProfile profile = new AzureProfile(AzureEnvironment.AZURE);
+            final TokenCredential credential = new DefaultAzureCredentialBuilder()
+                .authorityHost(profile.getEnvironment().getActiveDirectoryEndpoint())
+                .build();
 
-            Azure azure = Azure.configure()
-                .withLogLevel(LogLevel.BODY)
-                .authenticate(credFile)
+            AzureResourceManager azureResourceManager = AzureResourceManager
+                .configure()
+                .withLogLevel(HttpLogDetailLevel.BASIC)
+                .authenticate(credential, profile)
                 .withDefaultSubscription();
 
             // Print selected subscription
-            System.out.println("Selected subscription: " + azure.subscriptionId());
+            System.out.println("Selected subscription: " + azureResourceManager.subscriptionId());
 
-            runSample(azure);
+            runSample(azureResourceManager);
         } catch (Exception e) {
             System.out.println(e.getMessage());
             e.printStackTrace();
